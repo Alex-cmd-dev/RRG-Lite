@@ -1,0 +1,120 @@
+"""
+Fetch OHLC data for Select Sector SPDR ETFs + SPY benchmark
+from the local Schwab broker API and save as CSV files for RRG-Lite.
+
+Usage:
+    python fetch_spdr.py [--api-key KEY] [--host HOST] [--out DIR] [--years N]
+
+Defaults:
+    host    http://localhost:8080
+    out     ./data
+    years   2
+"""
+
+import argparse
+import csv
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import requests
+
+SPDR_ETFS = {
+    "SPY":  "S&P 500 (benchmark)",
+    "XLB":  "Materials",
+    "XLC":  "Communication Services",
+    "XLE":  "Energy",
+    "XLF":  "Financial",
+    "XLI":  "Industrials",
+    "XLK":  "Technology",
+    "XLP":  "Consumer Staples",
+    "XLRE": "Real Estate",
+    "XLU":  "Utilities",
+    "XLV":  "Health Care",
+    "XLY":  "Consumer Discretionary",
+}
+
+
+def fetch_history(host: str, api_key: str, symbol: str, start: str, end: str) -> list[dict]:
+    url = f"{host}/api/v1/market/history/{symbol}"
+    params = {
+        "period_type": "year",
+        "frequency_type": "daily",
+        "frequency": "1",
+        "start_date": start,
+        "end_date": end,
+    }
+    headers = {"X-API-Key": api_key}
+
+    resp = requests.get(url, params=params, headers=headers, timeout=30)
+    resp.raise_for_status()
+
+    data = resp.json()
+    return data.get("candles", [])
+
+
+def candles_to_csv(candles: list[dict], out_path: Path) -> int:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with out_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+        for c in candles:
+            # timestamp is ISO string e.g. "2024-05-17T16:00:00Z"
+            date = c["timestamp"][:10]
+            writer.writerow([date, c["open"], c["high"], c["low"], c["close"], c["volume"]])
+
+    return len(candles)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fetch SPDR ETF OHLC data for RRG-Lite")
+    parser.add_argument("--api-key", default="dev-api-key", help="Broker API key")
+    parser.add_argument("--host", default="http://localhost:8080", help="Broker API base URL")
+    parser.add_argument("--out", default="data", help="Output directory for CSV files")
+    parser.add_argument("--years", type=int, default=2, help="Years of history to fetch")
+    args = parser.parse_args()
+
+    end = datetime.today()
+    start = end - timedelta(days=365 * args.years)
+    start_str = start.strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
+    out_dir = Path(args.out)
+
+    print(f"Fetching {start_str} → {end_str} into {out_dir}/\n")
+
+    success, failed = [], []
+
+    for symbol, label in SPDR_ETFS.items():
+        print(f"  {symbol:<6} {label}...", end=" ", flush=True)
+        try:
+            candles = fetch_history(args.host, args.api_key, symbol, start_str, end_str)
+            if not candles:
+                print("WARN: no candles returned")
+                failed.append(symbol)
+                continue
+            rows = candles_to_csv(candles, out_dir / f"{symbol.lower()}.csv")
+            print(f"{rows} rows")
+            success.append(symbol)
+        except requests.HTTPError as e:
+            print(f"HTTP {e.response.status_code}")
+            failed.append(symbol)
+        except Exception as e:
+            print(f"ERROR: {e}")
+            failed.append(symbol)
+
+    print(f"\nDone: {len(success)} fetched, {len(failed)} failed")
+    if failed:
+        print(f"Failed: {', '.join(failed)}")
+        sys.exit(1)
+
+    # Write src/user.json if it doesn't exist yet
+    user_json = Path(__file__).parent / "src" / "user.json"
+    if not user_json.exists():
+        abs_data = out_dir.resolve()
+        user_json.write_text(f'{{\n  "DATA_PATH": "{abs_data}/"\n}}\n')
+        print(f"\nCreated src/user.json pointing to {abs_data}/")
+
+
+if __name__ == "__main__":
+    main()
