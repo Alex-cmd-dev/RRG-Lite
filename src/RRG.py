@@ -364,11 +364,11 @@ marker, and label
         rs = (stock_df / benchmark_df) * 100
         smoothed = self._wma(rs, self.window)
         roll = smoothed.rolling(self.window)
-        return (100 * ((smoothed - roll.mean()) / roll.std() + 1)).dropna()
+        return (100 + (smoothed - roll.mean()) / roll.std()).dropna()
 
     def _calculate_momentum(self, rs_ratio: pd.Series) -> pd.Series:
         roll = rs_ratio.rolling(self.window)
-        return (100 * ((rs_ratio - roll.mean()) / roll.std() + 1)).dropna()
+        return (100 + (rs_ratio - roll.mean()) / roll.std()).dropna()
 
     def _clear_all(self, key):
         """
