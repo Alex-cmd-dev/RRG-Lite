@@ -11,6 +11,8 @@ Defaults:
     years   2
 """
 
+".venv/bin/python src/init.py -b spy --sym xlb xlc xle xlf xli xlk xlp xlre xlu xlv xly"
+
 import argparse
 import csv
 import sys
