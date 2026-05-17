@@ -41,7 +41,7 @@ class RRG:
         # Tail count set to minimum 2
         self.tail_count = max(2, tail_count)
 
-        self.window = config.get("WINDOW", 14)
+        self.window = config.get("WINDOW", 10)
         self.period = config.get("PERIOD", 52)
         self.base_date = config.get("BASE_DATE")
         self.config = config
@@ -353,41 +353,22 @@ marker, and label
         else:
             return "#00749D" if y > 100 else "#E0002B"
 
+    @staticmethod
+    def _wma(series: pd.Series, n: int) -> pd.Series:
+        weights = np.arange(1, n + 1, dtype=float)
+        return series.rolling(n, min_periods=n).apply(
+            lambda x: np.dot(x, weights) / weights.sum(), raw=True
+        )
+
     def _calculate_rs(self, stock_df: pd.Series, benchmark_df: pd.Series) -> pd.Series:
-        """
-        Returns the RS ratio as a multiple of standard dev of SMA(RS)
-
-        - Take the difference of RS and SMA(RS).
-        - Divide the difference with the standard deviation of SMA(RS)
-        - Add 100 to serve as a base value
-        """
         rs = (stock_df / benchmark_df) * 100
-
-        rs_sma = rs.rolling(window=self.window)
-
-        return ((rs - rs_sma.mean()) / rs_sma.std(ddof=1)).dropna() + 100
+        smoothed = self._wma(rs, self.window)
+        roll = smoothed.rolling(self.window)
+        return (100 * ((smoothed - roll.mean()) / roll.std() + 1)).dropna()
 
     def _calculate_momentum(self, rs_ratio: pd.Series) -> pd.Series:
-        """
-        Returns the RS momentum as a multiple of standard deviation of SMA(ROC)
-
-        - Calculate the ROC using the first value as base
-        - Take the difference of ROC and SMA(ROC)
-        - Divide the difference with the standard deviation of SMA(ROC)
-        - Add 100 to serve as a base value
-        """
-
-        if self.base_date:
-            base_rs = rs_ratio.at[self.base_date]
-        else:
-            base_rs = rs_ratio.iloc[-self.period]
-
-        # Rate of change (ROC)
-        rs_roc = ((rs_ratio / base_rs) - 1) * 100
-
-        roc_sma = rs_roc.rolling(window=self.window)
-
-        return ((rs_roc - roc_sma.mean()) / roc_sma.std(ddof=1)).dropna() + 100
+        roll = rs_ratio.rolling(self.window)
+        return (100 * ((rs_ratio - roll.mean()) / roll.std() + 1)).dropna()
 
     def _clear_all(self, key):
         """
