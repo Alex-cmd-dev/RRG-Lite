@@ -92,7 +92,9 @@ def fetch_all(
                 continue
             candles_to_csv(candles, out_dir / f"{symbol.lower()}.csv")
             success.append(symbol)
-        except Exception:
+        except Exception as exc:
+            if progress_cb:
+                progress_cb(f"Error fetching {symbol}: {exc}")
             failed.append(symbol)
 
     return success, failed

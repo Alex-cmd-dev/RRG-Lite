@@ -12,7 +12,6 @@ from tkinter import ttk
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import utils
 from RRG import RRG
 from fetch_spdr import fetch_all
 
@@ -44,8 +43,8 @@ class SettingsDialog(tk.Toplevel):
         ttk.Button(btn_frame, text="Save", command=self._save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.LEFT, padx=6)
 
-        self.grab_set()
         self.transient(parent)
+        self.grab_set()
         self.wait_window()
 
     def _save(self):
@@ -63,6 +62,7 @@ class RRGApp(tk.Tk):
         self.geometry("1280x860")
 
         self._rrg_cids = []
+        self._fetching = False
         self.config_data = self._load_config()
 
         self._build_controls()
@@ -104,7 +104,8 @@ class RRGApp(tk.Tk):
         )
 
         ttk.Button(row1, text="Plot", command=self._plot).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(row1, text="Refresh Data", command=self._refresh_data).pack(side=tk.LEFT, padx=(0, 6))
+        self._refresh_btn = ttk.Button(row1, text="Refresh Data", command=self._refresh_data)
+        self._refresh_btn.pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(row1, text="Settings", command=self._open_settings).pack(side=tk.LEFT)
 
         sym_frame = ttk.LabelFrame(top, text="Sectors")
@@ -150,8 +151,8 @@ class RRGApp(tk.Tk):
             self.canvas.draw()
             return
 
-        if not self.config_data:
-            self.status_var.set("Error: src/user.json not found.")
+        if not self.config_data.get("DATA_PATH"):
+            self.status_var.set("Error: DATA_PATH not set — edit Settings or check src/user.json.")
             return
 
         try:
@@ -166,22 +167,26 @@ class RRGApp(tk.Tk):
             cids = rrg.plot(fig=self.fig, axs=axs)
             if cids:
                 self._rrg_cids.extend(cids)
+            self.fig.tight_layout()
         except Exception as e:
             self.status_var.set(f"Error: {e}")
             self.canvas.draw()
             return
 
-        self.fig.tight_layout()
         self.canvas.draw()
         self.status_var.set(f"Plotted {len(symbols)} sectors vs {benchmark.upper()}")
 
     def _refresh_data(self):
+        if self._fetching:
+            return
+
         host = self.config_data.get("API_HOST", "http://localhost:8080")
         api_key = self.config_data.get("API_KEY", "dev-api-key")
         data_path = self.config_data.get("DATA_PATH", "data")
 
+        self._fetching = True
+        self._refresh_btn.config(state="disabled")
         self.status_var.set("Fetching data...")
-        self.update()
 
         def do_fetch():
             try:
@@ -193,6 +198,8 @@ class RRGApp(tk.Tk):
                 )
 
                 def done():
+                    self._fetching = False
+                    self._refresh_btn.config(state="normal")
                     if failed:
                         self.status_var.set(
                             f"Done: {len(success)} fetched, {len(failed)} failed ({', '.join(failed)}). Click Plot to refresh."
@@ -204,7 +211,11 @@ class RRGApp(tk.Tk):
 
                 self.after(0, done)
             except Exception as e:
-                self.after(0, lambda err=e: self.status_var.set(f"Fetch error: {err}"))
+                def on_error(err=e):
+                    self._fetching = False
+                    self._refresh_btn.config(state="normal")
+                    self.status_var.set(f"Fetch error: {err}")
+                self.after(0, on_error)
 
         threading.Thread(target=do_fetch, daemon=True).start()
 

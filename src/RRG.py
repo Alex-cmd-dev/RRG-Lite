@@ -123,6 +123,8 @@ marker, and label
         if not embedded:
             self.fig, axs = plt.subplots()
         else:
+            if axs is None:
+                raise ValueError("axs must be provided when fig is provided")
             self.fig = fig
 
         axs.format_coord = self._format_coords
@@ -258,8 +260,9 @@ marker, and label
                 dates=date_annotations,
             )
 
-        axs.set_xlim(x_min - 0.3, x_max + 0.3)
-        axs.set_ylim(y_min - 0.3, y_max + 0.3)
+        if x_max > x_min:
+            axs.set_xlim(x_min - 0.3, x_max + 0.3)
+            axs.set_ylim(y_min - 0.3, y_max + 0.3)
 
         # Labels for each quadrant
         if x_min < 100 and y_max > 100:
