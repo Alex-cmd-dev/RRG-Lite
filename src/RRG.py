@@ -105,10 +105,9 @@ marker, and label
         self.highlighted_count = 0
         self.active_date_labels = []
 
-    def plot(self):
+    def plot(self, fig=None, axs=None):
         txt_alpha = 0.4
-
-        # colors = np.random.rand(len(self.watchlist), 3) * 0.6
+        embedded = fig is not None
 
         bm = self.loader.get(self.benchmark)
 
@@ -121,10 +120,12 @@ marker, and label
         bm_closes = self._process_ser(bm.loc[:, "Close"])
 
         # Setup the chart
-        self.fig, axs = plt.subplots()
-        axs.format_coord = self._format_coords
+        if not embedded:
+            self.fig, axs = plt.subplots()
+        else:
+            self.fig = fig
 
-        plt.tight_layout()
+        axs.format_coord = self._format_coords
 
         axs.set_title(f"RRG - {self.benchmark.upper()} - {bm.index[-1]:%d %b %Y}")
         axs.set_xlabel("RS Ratio")
@@ -297,10 +298,16 @@ marker, and label
                 alpha=txt_alpha,
             )
 
-        self.fig.canvas.mpl_connect("pick_event", self._on_pick)
-        self.fig.canvas.mpl_connect("key_press_event", self._on_key_press)
+        cid_pick = self.fig.canvas.mpl_connect("pick_event", self._on_pick)
+        cid_key = self.fig.canvas.mpl_connect("key_press_event", self._on_key_press)
+
+        self.axs = axs
+
+        if embedded:
+            return [cid_pick, cid_key]
 
         # Display the chart window in full screen
+        plt.tight_layout()
         window_manager = plt.get_current_fig_manager()
 
         if window_manager:
@@ -312,8 +319,6 @@ marker, and label
                     window_manager.full_screen_toggle()
             else:
                 window_manager.full_screen_toggle()
-
-        self.axs = axs
 
         plt.show()
 

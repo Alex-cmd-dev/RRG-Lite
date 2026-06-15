@@ -11,8 +11,6 @@ Defaults:
     years   2
 """
 
-".venv/bin/python src/init.py -b spy --sym xlb xlc xle xlf xli xlk xlp xlre xlu xlv xly"
-
 import argparse
 import csv
 import sys
@@ -62,11 +60,42 @@ def candles_to_csv(candles: list[dict], out_path: Path) -> int:
         writer = csv.writer(f)
         writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
         for c in candles:
-            # timestamp is ISO string e.g. "2024-05-17T16:00:00Z"
             date = c["timestamp"][:10]
             writer.writerow([date, c["open"], c["high"], c["low"], c["close"], c["volume"]])
 
     return len(candles)
+
+
+def fetch_all(
+    host: str,
+    api_key: str,
+    out_dir: Path,
+    years: int = 2,
+    progress_cb=None,
+) -> tuple[list, list]:
+    """Fetch all SPDR ETFs and SPY. Returns (success_list, failed_list)."""
+    end = datetime.today()
+    start = end - timedelta(days=365 * years)
+    start_str = start.strftime("%Y-%m-%d")
+    end_str = end.strftime("%Y-%m-%d")
+    out_dir = Path(out_dir)
+
+    success, failed = [], []
+
+    for symbol, label in SPDR_ETFS.items():
+        if progress_cb:
+            progress_cb(f"Fetching {symbol} — {label}...")
+        try:
+            candles = fetch_history(host, api_key, symbol, start_str, end_str)
+            if not candles:
+                failed.append(symbol)
+                continue
+            candles_to_csv(candles, out_dir / f"{symbol.lower()}.csv")
+            success.append(symbol)
+        except Exception:
+            failed.append(symbol)
+
+    return success, failed
 
 
 def main():
@@ -77,40 +106,25 @@ def main():
     parser.add_argument("--years", type=int, default=2, help="Years of history to fetch")
     args = parser.parse_args()
 
-    end = datetime.today()
-    start = end - timedelta(days=365 * args.years)
-    start_str = start.strftime("%Y-%m-%d")
-    end_str = end.strftime("%Y-%m-%d")
     out_dir = Path(args.out)
+    print(f"Fetching into {out_dir}/\n")
 
-    print(f"Fetching {start_str} → {end_str} into {out_dir}/\n")
+    def progress(msg):
+        print(f"  {msg}", flush=True)
 
-    success, failed = [], []
-
-    for symbol, label in SPDR_ETFS.items():
-        print(f"  {symbol:<6} {label}...", end=" ", flush=True)
-        try:
-            candles = fetch_history(args.host, args.api_key, symbol, start_str, end_str)
-            if not candles:
-                print("WARN: no candles returned")
-                failed.append(symbol)
-                continue
-            rows = candles_to_csv(candles, out_dir / f"{symbol.lower()}.csv")
-            print(f"{rows} rows")
-            success.append(symbol)
-        except requests.HTTPError as e:
-            print(f"HTTP {e.response.status_code}")
-            failed.append(symbol)
-        except Exception as e:
-            print(f"ERROR: {e}")
-            failed.append(symbol)
+    success, failed = fetch_all(
+        host=args.host,
+        api_key=args.api_key,
+        out_dir=out_dir,
+        years=args.years,
+        progress_cb=progress,
+    )
 
     print(f"\nDone: {len(success)} fetched, {len(failed)} failed")
     if failed:
         print(f"Failed: {', '.join(failed)}")
         sys.exit(1)
 
-    # Write src/user.json if it doesn't exist yet
     user_json = Path(__file__).parent / "src" / "user.json"
     if not user_json.exists():
         abs_data = out_dir.resolve()
