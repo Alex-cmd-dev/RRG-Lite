@@ -313,6 +313,7 @@ class RRGApp(tk.Tk):
 
         if not self.config_data.get("DATA_PATH"):
             self.status_var.set("Error: DATA_PATH not set — edit Settings or check src/user.json.")
+            self.canvas.draw()
             return
 
         tf = self.tf_var.get()

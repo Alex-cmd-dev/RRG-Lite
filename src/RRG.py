@@ -154,7 +154,7 @@ marker, and label
             short_name = None
 
             if "," in ticker:
-                ticker, short_name = ticker.split(",")
+                ticker, short_name = ticker.split(",", 1)
 
             if short_name is None:
                 short_name = ticker
@@ -402,8 +402,9 @@ marker, and label
         if self.active_date_labels:
             updated = True
             self._clear_active_date_labels()
-            self.highlighted_count = 0
-            self.tabbable = 0
+
+        self.highlighted_count = 0
+        self.tabbable = False
 
         if updated:
             self.fig.canvas.draw_idle()
@@ -521,6 +522,9 @@ marker, and label
         marker = event.artist
 
         url = marker.get_url()
+
+        if url not in self.state:
+            return
 
         line = self.state[url]["line"]
         markers = self.state[url]["markers"]
