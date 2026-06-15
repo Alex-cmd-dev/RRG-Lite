@@ -146,6 +146,9 @@ marker, and label
         x_max = y_max = 0
         x_min = y_min = 200
 
+        self.plotted_count = 0
+        self.skipped_tickers = []
+
         # Start calculation of RS and RS Momentum
         for i, ticker in enumerate(self.watchlist):
             short_name = None
@@ -159,6 +162,7 @@ marker, and label
             df = self.loader.get(ticker)
 
             if df is None or df.empty:
+                self.skipped_tickers.append(ticker)
                 continue
 
             ser_closes = self._process_ser(df.loc[:, "Close"])
@@ -169,6 +173,7 @@ marker, and label
 
             if min(len(rsm), len(rsr)) < self.tail_count:
                 print(f"Unable to load `{ticker.upper()}`: Insufficient data")
+                self.skipped_tickers.append(ticker)
                 continue
 
             rsr_line = rsr.iloc[-self.tail_count :]
@@ -259,6 +264,7 @@ marker, and label
                 annotation=annotation,
                 dates=date_annotations,
             )
+            self.plotted_count += 1
 
         if x_max > x_min:
             axs.set_xlim(x_min - 0.3, x_max + 0.3)

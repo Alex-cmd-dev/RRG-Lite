@@ -62,6 +62,7 @@ class RRGApp(tk.Tk):
         self.geometry("1280x860")
 
         self._rrg_cids = []
+        self._rrg = None
         self._fetching = False
         self.config_data = self._load_config()
 
@@ -108,6 +109,13 @@ class RRGApp(tk.Tk):
         self._refresh_btn.pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(row1, text="Settings", command=self._open_settings).pack(side=tk.LEFT)
 
+        ttk.Separator(row1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        self._tails_btn = ttk.Button(row1, text="Tails: Off", command=self._toggle_tails, state="disabled")
+        self._tails_btn.pack(side=tk.LEFT, padx=(0, 4))
+        self._names_btn = ttk.Button(row1, text="Names: Off", command=self._toggle_names, state="disabled")
+        self._names_btn.pack(side=tk.LEFT)
+
         sym_frame = ttk.LabelFrame(top, text="Sectors")
         sym_frame.pack(fill=tk.X, pady=(6, 0))
 
@@ -140,6 +148,9 @@ class RRGApp(tk.Tk):
             except Exception:
                 pass
         self._rrg_cids.clear()
+        self._rrg = None
+        self._tails_btn.config(state="disabled", text="Tails: Off")
+        self._names_btn.config(state="disabled", text="Names: Off")
 
         self.fig.clear()
 
@@ -155,26 +166,46 @@ class RRGApp(tk.Tk):
             self.status_var.set("Error: DATA_PATH not set — edit Settings or check src/user.json.")
             return
 
+        tf = self.tf_var.get()
         try:
             rrg = RRG(
                 self.config_data,
                 watchlist=symbols,
                 tail_count=self.tail_var.get(),
                 benchmark=benchmark,
-                tf=self.tf_var.get(),
+                tf=tf,
             )
             axs = self.fig.add_subplot(111)
             cids = rrg.plot(fig=self.fig, axs=axs)
             if cids:
                 self._rrg_cids.extend(cids)
             self.fig.tight_layout()
+        except ValueError as e:
+            msg = str(e)
+            if "insufficient" in msg.lower():
+                msg = f"Not enough data for {tf} view — try Refresh Data with more years."
+            self.status_var.set(f"Error: {msg}")
+            self.canvas.draw()
+            return
         except Exception as e:
             self.status_var.set(f"Error: {e}")
             self.canvas.draw()
             return
 
+        self._rrg = rrg
+        self._tails_btn.config(state="normal")
+        self._names_btn.config(state="normal")
         self.canvas.draw()
-        self.status_var.set(f"Plotted {len(symbols)} sectors vs {benchmark.upper()}")
+
+        n = rrg.plotted_count
+        skipped = rrg.skipped_tickers
+        if skipped:
+            self.status_var.set(
+                f"Plotted {n}/{len(symbols)} sectors vs {benchmark.upper()} "
+                f"({len(skipped)} skipped: {', '.join(skipped)})"
+            )
+        else:
+            self.status_var.set(f"Plotted {n} sectors vs {benchmark.upper()}")
 
     def _refresh_data(self):
         if self._fetching:
@@ -218,6 +249,20 @@ class RRGApp(tk.Tk):
                 self.after(0, on_error)
 
         threading.Thread(target=do_fetch, daemon=True).start()
+
+    def _toggle_tails(self):
+        if self._rrg is None:
+            return
+        self._rrg._toggle_lines(None)
+        is_on = self._rrg.line_alpha_state > 0
+        self._tails_btn.config(text=f"Tails: {'On' if is_on else 'Off'}")
+
+    def _toggle_names(self):
+        if self._rrg is None:
+            return
+        self._rrg._toggle_text(None)
+        is_on = self._rrg.text_alpha_state > 0
+        self._names_btn.config(text=f"Names: {'On' if is_on else 'Off'}")
 
     def _open_settings(self):
         dlg = SettingsDialog(self, self.config_data)
