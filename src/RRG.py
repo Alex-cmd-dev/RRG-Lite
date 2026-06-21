@@ -57,12 +57,8 @@ class RRG:
         self.text_alpha = 0.6
         self.line_alpha = 0.5
 
-        # 2x Window periods for moving averages (RS & ROC)
-        # + Additional period for ROC base period calculation
-        # + tail count
-        self.minimum_data_length = (
-            self.window * 2 + max(self.window, self.period) + self.tail_count
-        )
+        # WMA(rs, W) + WMA(rs_smooth, W) + shift(W) + tail
+        self.minimum_data_length = self.window * 3 + self.tail_count
 
         loader_class = utils.get_loader_class(config)
 
@@ -376,13 +372,12 @@ marker, and label
 
     def _calculate_rs(self, stock_df: pd.Series, benchmark_df: pd.Series) -> pd.Series:
         rs = (stock_df / benchmark_df) * 100
-        smoothed = self._wma(rs, self.window)
-        roll = smoothed.rolling(self.window)
-        return (100 + (smoothed - roll.mean()) / roll.std()).dropna()
+        rs_smooth = self._wma(rs, self.window)
+        rs_smooth_slow = self._wma(rs_smooth, self.window)
+        return (rs_smooth / rs_smooth_slow * 100).dropna()
 
     def _calculate_momentum(self, rs_ratio: pd.Series) -> pd.Series:
-        roll = rs_ratio.rolling(self.window)
-        return (100 + (rs_ratio - roll.mean()) / roll.std()).dropna()
+        return (rs_ratio / rs_ratio.shift(self.window) * 100).dropna()
 
     def _clear_all(self, key):
         """
