@@ -133,11 +133,12 @@ marker, and label
         axs.axhline(y=100, color="black", linestyle="--", linewidth=0.3)
         axs.axvline(x=100, color="black", linestyle="--", linewidth=0.3)
 
-        # Background colors for each quadrant
-        axs.fill_between([93.5, 100], 100, 106.5, color="#b1ebff")
-        axs.fill_between([100, 106.5], 100, 106.5, color="#bdffc9")
-        axs.fill_between([100, 106.5], 93.5, 100, color="#fff7b8")
-        axs.fill_between([93.5, 100], 93.5, 100, color="#ffb9c6")
+        # Background colors for each quadrant — use large bounds so the fill
+        # always covers the full chart regardless of where data lands.
+        axs.fill_between([0, 100], 100, 200, color="#b1ebff")
+        axs.fill_between([100, 200], 100, 200, color="#bdffc9")
+        axs.fill_between([100, 200], 0, 100, color="#fff7b8")
+        axs.fill_between([0, 100], 0, 100, color="#ffb9c6")
 
         x_max = y_max = 0
         x_min = y_min = 200
