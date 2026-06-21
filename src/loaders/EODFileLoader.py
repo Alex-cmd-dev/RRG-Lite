@@ -116,6 +116,9 @@ class EODFileLoader(AbstractLoader):
             return
 
         if self.tf == self.default_tf or df.empty:
+            if self.tf == "weekly" and not df.empty:
+                # API labels weekly bars with Monday; shift to Friday (close day).
+                df.index = df.index + pd.Timedelta(days=4)
             return df
 
         df = df.resample(self.offset_str, label="left").agg(self.ohlc_dict).dropna()

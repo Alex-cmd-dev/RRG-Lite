@@ -19,7 +19,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 SPDR_ETFS = ["XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY"]
-TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
+TIMEFRAME = "weekly"
 CONFIG_PATH = Path(__file__).parent / "user.json"
 
 
@@ -223,8 +223,11 @@ class RRGApp(tk.Tk):
 
     def _load_config(self):
         if CONFIG_PATH.exists():
-            return json.loads(CONFIG_PATH.read_bytes())
-        return {}
+            cfg = json.loads(CONFIG_PATH.read_bytes())
+        else:
+            cfg = {}
+        cfg["DEFAULT_TF"] = TIMEFRAME
+        return cfg
 
     def _save_config(self):
         CONFIG_PATH.write_text(json.dumps(self.config_data, indent=2) + "\n")
@@ -239,12 +242,6 @@ class RRGApp(tk.Tk):
         ttk.Label(row1, text="Benchmark:").pack(side=tk.LEFT)
         self.benchmark_var = tk.StringVar(value=self.config_data.get("BENCHMARK", "SPY"))
         ttk.Entry(row1, textvariable=self.benchmark_var, width=8).pack(side=tk.LEFT, padx=(3, 12))
-
-        ttk.Label(row1, text="Timeframe:").pack(side=tk.LEFT)
-        self.tf_var = tk.StringVar(value=self.config_data.get("DEFAULT_TF", "weekly"))
-        ttk.Combobox(row1, textvariable=self.tf_var, values=TIMEFRAMES, width=10, state="readonly").pack(
-            side=tk.LEFT, padx=(3, 12)
-        )
 
         ttk.Label(row1, text="Tail:").pack(side=tk.LEFT)
         self.tail_var = tk.IntVar(value=4)
@@ -316,14 +313,13 @@ class RRGApp(tk.Tk):
             self.canvas.draw()
             return
 
-        tf = self.tf_var.get()
         try:
             rrg = RRG(
                 self.config_data,
                 watchlist=symbols,
                 tail_count=self.tail_var.get(),
                 benchmark=benchmark,
-                tf=tf,
+                tf=TIMEFRAME,
             )
             axs = self.fig.add_subplot(111)
             cids = rrg.plot(fig=self.fig, axs=axs)
@@ -333,7 +329,7 @@ class RRGApp(tk.Tk):
         except ValueError as e:
             msg = str(e)
             if "insufficient" in msg.lower():
-                msg = f"Not enough data for {tf} view — try Refresh Data with more years."
+                msg = "Not enough weekly data — try Refresh Data with more years."
             self.status_var.set(f"Error: {msg}")
             self.canvas.draw()
             return

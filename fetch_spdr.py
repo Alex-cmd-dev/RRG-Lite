@@ -39,7 +39,7 @@ def fetch_history(host: str, api_key: str, symbol: str, start: str, end: str) ->
     url = f"{host}/api/v1/market/history/{symbol}"
     params = {
         "period_type": "year",
-        "frequency_type": "daily",
+        "frequency_type": "weekly",
         "frequency": "1",
         "start_date": start,
         "end_date": end,
@@ -130,7 +130,9 @@ def main():
     user_json = Path(__file__).parent / "src" / "user.json"
     if not user_json.exists():
         abs_data = out_dir.resolve()
-        user_json.write_text(f'{{\n  "DATA_PATH": "{abs_data}/"\n}}\n')
+        user_json.write_text(
+            f'{{\n  "DATA_PATH": "{abs_data}/",\n  "DEFAULT_TF": "weekly"\n}}\n'
+        )
         print(f"\nCreated src/user.json pointing to {abs_data}/")
 
 
