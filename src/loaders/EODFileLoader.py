@@ -147,21 +147,10 @@ class EODFileLoader(AbstractLoader):
         return df
 
     def last_day_week(self, date: datetime) -> datetime:
-        """Given a date returns the date for Saturday"""
-
+        """Returns the Saturday of the given date's week, or previous Saturday for Sunday."""
         weekday = date.weekday()
-
-        if weekday == 5:
-            # saturday
-            return date
-
-        remaining_days = 5 - weekday
-
-        if remaining_days == -1:
-            # its a sunday
-            remaining_days += 7
-
-        return date + timedelta(remaining_days)
+        days = 5 - weekday if weekday <= 5 else -1
+        return date + timedelta(days)
 
     def last_day_month(self, date: datetime) -> datetime:
         """Given a date returns the date for last day of month"""
